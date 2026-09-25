@@ -328,7 +328,7 @@ function render() {
   if (state.dayView) renderDay();
 
   $('#footer').innerHTML = wn
-    ? `Forecast data: Google DeepMind WeatherNext 3, experimental data not intended, validated or approved for real-world use. © ${new Date().getFullYear()} DeepMind Technologies Limited. Historical data CC BY 4.0. Place search: Open-Meteo.`
+    ? 'Forecast data: WeatherNext 3 via Google Earth Engine. © 2024-6 Google LLC, whose machine learning models were used to create the experimental data made available under the following licence terms <a href="https://storage.googleapis.com/weathernext-public/terms-of-use.pdf" target="_blank" rel="noopener">terms of use</a>. This data is intended for experimental modelling only and is not intended, validated, or approved for real world use. Place search: Open-Meteo.'
     : 'Demo data: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> (CC BY 4.0). Switch to WeatherNext 3 in Settings.';
 }
 
