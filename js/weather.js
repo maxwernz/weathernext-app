@@ -219,7 +219,7 @@ export function summary(hours, start, fmtTime, fmtTemp) {
     parts.push(`${cap(kind)} likely from around ${fmtTime(next[wetIdx].t)}.`);
   } else {
     const cloud = mean(next.map((h) => h.cloud));
-    parts.push(cloud < 0.3 ? 'Dry with plenty of sun.' : cloud < 0.7 ? 'Dry with a mix of sun and cloud.' : 'Dry but mostly cloudy.');
+    parts.push(cloud < 0.3 ? 'Dry with clear skies.' : cloud < 0.7 ? 'Dry with a mix of sun and cloud.' : 'Dry but mostly cloudy.');
   }
   parts.push(`Temperatures between ${fmtTemp(lo)} and ${fmtTemp(hi)}.`);
   const windy = maxOf(next.map((h) => h.wind));

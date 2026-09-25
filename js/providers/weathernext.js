@@ -68,8 +68,9 @@ function candidateInits(now, stepHours, lookbackHours) {
 
 function buildQuery(ee, lat, lon) {
   const now = Date.now();
+  // system:time_start is the run's init time, so only recent inits are scanned.
   const col = ee.ImageCollection(WEATHERNEXT.collection)
-    .filterDate(new Date(now - 4 * 24 * HOUR), new Date(now + 17 * 24 * HOUR));
+    .filterDate(new Date(now - 54 * HOUR), new Date(now + HOUR));
 
   // Newest init time among candidates whose final lead time exists
   // ('' when none, which then just yields an empty sample).
@@ -84,12 +85,15 @@ function buildQuery(ee, lat, lon) {
   const synopticInit = newest(360, candidateInits(now, 6, 48));
 
   const point = ee.Geometry.Point([lon, lat]);
+  // Returned as a plain list of dictionaries: a collection nested inside a
+  // Dictionary comes back from evaluate() without its features.
   const sample = (init) => col
     .filter(ee.Filter.eq('start_time', init))
     .select(BANDS)
-    .map((img) => ee.Feature(null, img
+    .toList(400)
+    .map((img) => ee.Image(img)
       .reduceRegion({ reducer: ee.Reducer.first(), geometry: point, scale: 11132 })
-      .set('valid', img.get('end_time'))));
+      .set('valid', ee.Image(img).get('end_time')));
 
   return ee.Dictionary({
     hourlyInit,
@@ -157,8 +161,8 @@ export async function fetchWeatherNext({ lat, lon, token, clientId, project }) {
     throw err;
   }
 
-  const hourly = (res.hourly?.features || []).map((f) => toHour(f.properties));
-  const synoptic = (res.synoptic?.features || []).map((f) => toHour(f.properties));
+  const hourly = (res.hourly || []).map(toHour);
+  const synoptic = (res.synoptic || []).map(toHour);
   if (!hourly.length && !synoptic.length) {
     throw new Error('No recent WeatherNext 3 run was found for this location.');
   }
