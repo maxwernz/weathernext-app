@@ -7,6 +7,13 @@ export function makeFormat(settings, tz) {
   const timeFmt = new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit', timeZone: tz });
   const dayFmt = new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: tz });
   const dateFmt = new Intl.DateTimeFormat(locale, { weekday: 'short', day: 'numeric', month: 'short', timeZone: tz });
+  const dayShortFmt = new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: tz });
+  const dayNumFmt = new Intl.DateTimeFormat(locale, { day: 'numeric', timeZone: tz });
+  const dayLongFmt = new Intl.DateTimeFormat(locale, { weekday: 'long', day: 'numeric', month: 'long', timeZone: tz });
+  const weekdayFmt = new Intl.DateTimeFormat(locale, { weekday: 'long', timeZone: tz });
+  const monthDayFmt = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long', timeZone: tz });
+  const shortDateFmt = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'numeric', timeZone: tz });
+  const hour24Fmt = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', hourCycle: 'h23', timeZone: tz });
   const utcFmt = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC', hourCycle: 'h23' });
   const todayKey = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(Date.now());
 
@@ -25,6 +32,17 @@ export function makeFormat(settings, tz) {
       if (settings.precip === 'in') return `${(mm / 25.4).toFixed(mm < 25 ? 2 : 1)} in`;
       return `${mm < 10 ? mm.toFixed(1) : Math.round(mm)} mm`;
     },
+    windVal: (ms) => (ms == null ? null : ms * windFactor),
+    precipVal: (mm) => (mm == null ? null : settings.precip === 'in' ? mm / 25.4 : mm),
+    precipTick: (v) => (settings.precip === 'in' ? v.toFixed(2) : v < 10 ? v.toFixed(1) : `${Math.round(v)}`),
+    dayShort: (ms) => dayShortFmt.format(ms),
+    dayNum: (ms) => dayNumFmt.format(ms),
+    dayLong: (ms) => dayLongFmt.format(ms),
+    weekday: (ms) => weekdayFmt.format(ms),
+    monthDay: (ms) => monthDayFmt.format(ms),
+    shortDate: (ms) => shortDateFmt.format(ms),
+    hourOf: (ms) => Number(hour24Fmt.format(ms)),
+    hourShort: (ms) => hourFmt.format(ms).replace(/\s?Uhr$/, '').replace(/\s?([AP])\.?M\.?$/i, (m, ap) => ap.toLowerCase()),
     pct: (x) => (x == null ? '–' : `${Math.round(x * 100)}%`),
     pop: (x) => (x == null ? '' : x < 0.1 ? '' : `${Math.round(x * 10) * 10}%`),
     hour: (ms) => hourFmt.format(ms),

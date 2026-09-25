@@ -17,6 +17,13 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
+  <script>
+    try {
+      var s = JSON.parse(localStorage.getItem('skycast:settings') || '{}');
+      document.documentElement.dataset.appearance = s.appearance || 'sky';
+      document.documentElement.dataset.theme = s.theme || 'auto';
+    } catch (e) { document.documentElement.dataset.appearance = 'sky'; }
+  </script>
 </head>
 <body>
   <div id="sky" class="sky" aria-hidden="true"></div>
@@ -111,6 +118,27 @@
         </fieldset>
 
         <fieldset>
+          <legend>Appearance</legend>
+          <div class="look-picker">
+            <label class="look">
+              <input type="radio" name="appearance" value="sky">
+              <span class="look-preview look-sky" aria-hidden="true"><i></i><b></b><b></b></span>
+              <span class="look-name">Sky</span>
+            </label>
+            <label class="look">
+              <input type="radio" name="appearance" value="clean">
+              <span class="look-preview look-clean" aria-hidden="true"><i></i><b></b><b></b></span>
+              <span class="look-name">Clean</span>
+            </label>
+          </div>
+          <div class="seg" role="radiogroup" aria-label="Theme" id="themeSeg">
+            <label><input type="radio" name="theme" value="auto"><span>Auto</span></label>
+            <label><input type="radio" name="theme" value="light"><span>Light</span></label>
+            <label><input type="radio" name="theme" value="dark"><span>Dark</span></label>
+          </div>
+        </fieldset>
+
+        <fieldset>
           <legend>Units</legend>
           <div class="seg" role="radiogroup" aria-label="Temperature">
             <label><input type="radio" name="temp" value="c"><span>°C</span></label>
@@ -131,6 +159,9 @@
     </div>
   </div>
 
+
+  <!-- Day detail -->
+  <div class="dayview" id="dayView" role="dialog" aria-modal="true" aria-labelledby="dayTitle" hidden></div>
 
   <script type="module" src="js/app.js"></script>
 </body>

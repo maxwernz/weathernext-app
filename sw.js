@@ -1,7 +1,7 @@
 // App-shell service worker: network first (so updates land immediately),
 // falling back to the cache when offline. API calls are never cached here.
 
-const CACHE = 'skycast-v2';
+const CACHE = 'skycast-v3';
 const SHELL = [
   './',
   'index.html',
@@ -10,6 +10,8 @@ const SHELL = [
   'js/auth.js',
   'js/chart.js',
   'js/config.js',
+  'js/dayview.js',
+  'js/metricchart.js',
   'js/format.js',
   'js/geo.js',
   'js/icons.js',

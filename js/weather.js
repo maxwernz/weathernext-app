@@ -157,8 +157,10 @@ export function analyse(forecast, place) {
     groups.get(k).push(h);
   }
 
+  const todayKey = dayKey(Date.now(), tz);
   const days = [];
   for (const [key, hs] of groups) {
+    if (key < todayKey) continue;
     // Skip fragments (e.g. the last day of the horizon with a few hours).
     if (hs.length < 6 && days.length > 0) continue;
     const daytime = hs.filter((h) => h.isDay);

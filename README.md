@@ -9,6 +9,8 @@ ensemble forecasts.
 - The current conditions and hourly forecast use the newest hourly WeatherNext 3 run (48 h horizon).
 - The 15-day outlook uses the newest 6-hourly run (00/06/12/18 UTC).
 - The ensemble spread shows how uncertain the forecast is: a p10–p90 temperature band, a rain chance estimated from the precipitation quantiles, and a confidence rating.
+- There are two looks in Settings: **Sky** (glass cards on a sky that follows the weather) and **Clean** (minimal, in the style of AccuWeather, with light, dark or automatic themes).
+- Tap any day or hour to open a **day detail view**. It lets you switch days, shows charts for temperature, precipitation, wind, humidity, clouds, pressure and sun with written summaries, gives key figures for the day, and has an hour-by-hour table.
 - It works as an installable PWA: in iPhone Safari, tap **Share → Add to Home Screen**.
 - It runs as a static site with no server and no secrets. Your browser signs in with your own
   Google account and queries Earth Engine directly, so WeatherNext data is never

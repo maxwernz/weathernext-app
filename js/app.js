@@ -8,6 +8,7 @@ import { analyse, nowIndex, summary, humidity, feelsLike, CONDITION_LABELS } fro
 import { makeFormat, escapeHtml } from './format.js';
 import { weatherIcon } from './icons.js';
 import { renderChart } from './chart.js';
+import { renderDayView, drawDayChart } from './dayview.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -19,6 +20,7 @@ const state = {
   chartRange: store.load('chartRange', 48),
   loadingKey: null,
   notice: null,      // { kind, text, action? } shown above the content
+  dayView: null,     // { key, metric } while the day detail is open
 };
 
 // ---- Boot ----------------------------------------------------------------------
@@ -32,6 +34,7 @@ async function boot() {
       : { kind: 'error', text: `Google sign-in failed (${redirect.error}).`, action: 'sign-in', actionLabel: 'Try again' };
   }
 
+  applyAppearance();
   bindEvents();
   registerServiceWorker();
 
@@ -151,8 +154,22 @@ function setSky(cond, isDay) {
     : ['snow', 'heavySnow'].includes(cond) ? 'snow'
       : ['overcast', 'mostlyCloudy', 'fog'].includes(cond) ? 'cloudy' : 'clear';
   sky.dataset.sky = `${group}-${isDay ? 'day' : 'night'}`;
-  const meta = document.querySelector('meta[name="theme-color"]');
-  meta?.setAttribute('content', getComputedStyle(sky).getPropertyValue('--sky-top').trim() || '#0f2742');
+  updateThemeColor();
+}
+
+function updateThemeColor() {
+  const clean = state.settings.appearance === 'clean';
+  const color = clean
+    ? getComputedStyle(document.body).backgroundColor
+    : getComputedStyle($('#sky')).getPropertyValue('--sky-top').trim();
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', color || '#0f2742');
+}
+
+function applyAppearance() {
+  const root = document.documentElement;
+  root.dataset.appearance = state.settings.appearance;
+  root.dataset.theme = state.settings.theme;
+  updateThemeColor();
 }
 
 function render() {
@@ -173,13 +190,14 @@ function render() {
     ? `<div class="hero-range">Likely ${fmt.temp(now.tempLo)} – ${fmt.temp(now.tempHi)}</div>` : '';
 
   // Hourly strip: next 48 h.
+  const dayOfHour = (h) => d.days.find((x) => x.hours.includes(h))?.key || '';
   const strip = d.hours.slice(i0, i0 + 48).map((h, k) => `
-    <li class="hour">
+    <li><button class="hour" data-open-day="${dayOfHour(h)}">
       <span class="hour-time">${k === 0 ? 'Now' : escapeHtml(fmt.hour(h.t))}</span>
       ${weatherIcon(h.cond, h.isDay, 30, CONDITION_LABELS[h.cond])}
       <span class="hour-pop">${fmt.pop(h.pop)}</span>
       <span class="hour-temp">${fmt.temp(h.temp)}</span>
-    </li>`).join('');
+    </button></li>`).join('');
 
   // Daily list with range bars on a shared scale.
   const lo = Math.min(...d.days.map((x) => x.tempMinLo ?? x.tempMin));
@@ -190,15 +208,17 @@ function render() {
       ? `<span class="bar-ens" style="left:${pos(x.tempMinLo)}%;width:${pos(x.tempMaxHi) - pos(x.tempMinLo)}%"></span>` : '';
     const nowDot = x === today ? `<span class="bar-now" style="left:${pos(now.temp)}%"></span>` : '';
     return `
-      <li class="day">
-        <span class="day-name">${escapeHtml(fmt.day(x.noon, x.key))}</span>
+      <li><button class="day" data-open-day="${x.key}">
+        <span class="day-name">${escapeHtml(fmt.day(x.noon, x.key))}<small class="day-date">${escapeHtml(fmt.shortDate(x.noon))}</small></span>
         <span class="day-icon">${weatherIcon(x.cond, true, 28, CONDITION_LABELS[x.cond])}<span class="day-pop">${fmt.pop(x.pop)}</span></span>
+        <span class="day-cond">${CONDITION_LABELS[x.cond]}${x.precip >= 0.1 ? `<small>${fmt.precip(x.precip)}</small>` : ''}</span>
         <span class="day-lo">${fmt.temp(x.tempMin)}</span>
         <span class="day-bar" title="${x.tempMinLo != null ? `Ensemble range ${fmt.temp(x.tempMinLo)} – ${fmt.temp(x.tempMaxHi)}` : ''}">
           ${ens}<span class="bar-fill" style="left:${pos(x.tempMin)}%;width:${Math.max(2, pos(x.tempMax) - pos(x.tempMin))}%"></span>${nowDot}
         </span>
         <span class="day-hi">${fmt.temp(x.tempMax)}</span>
-      </li>`;
+        <svg class="day-chev" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8.6 16.6 13.2 12 8.6 7.4 10 6l6 6-6 6z"/></svg>
+      </button></li>`;
   }).join('');
 
   // Detail tiles.
@@ -245,8 +265,24 @@ function render() {
       : '',
   ].join('');
 
+  const nowStat = (label, value) => `<li><span>${label}</span><strong>${value}</strong></li>`;
+  const nowStats = [
+    nowStat('Feels like', fmt.temp(feelsLike(now.temp, now.dew, now.wind))),
+    nowStat('Wind', `${fmt.compass(now.windDir)} ${fmt.wind(now.wind)} ${fmt.windUnit}`),
+    nowStat(wn ? 'Wind up to' : 'Gusts', `${fmt.wind(now.windHi)} ${fmt.windUnit}`),
+    nowStat('Humidity', fmt.pct(rh)),
+    nowStat('Dew point', fmt.temp(now.dew)),
+    nowStat('Pressure', `${now.pressure == null ? '–' : Math.round(now.pressure)} hPa`),
+    nowStat('Cloud cover', fmt.pct(now.cloud)),
+    nowStat('Rain next 24 h', fmt.precip(rain24)),
+  ].join('');
+
   $('#content').innerHTML = `
     <section class="hero">
+      <div class="hero-top">
+        <h2 class="hero-label">Current weather</h2>
+        <span class="hero-time">${escapeHtml(fmt.time(Date.now()))}</span>
+      </div>
       <div class="hero-meta">${sourceBadge}</div>
       <div class="hero-main">
         <div class="hero-temp">${fmt.temp(now.temp)}</div>
@@ -255,6 +291,7 @@ function render() {
       <div class="hero-cond">${CONDITION_LABELS[now.cond]}</div>
       <div class="hero-hl">H ${fmt.temp(today.tempMax)} · L ${fmt.temp(today.tempMin)}</div>
       ${range}
+      <ul class="now-stats">${nowStats}</ul>
       <p class="hero-summary">${escapeHtml(summary(d.hours, i0, fmt.time, fmt.temp))}</p>
     </section>
 
@@ -265,6 +302,13 @@ function render() {
           <ul class="hours" tabindex="0" aria-label="Hourly forecast">${strip}</ul>
         </section>
 
+        <section class="card">
+          <h2 class="card-title">${d.days.length}-day forecast</h2>
+          <ul class="days">${days}</ul>
+        </section>
+      </div>
+
+      <div class="col">
         <section class="card">
           <div class="card-head">
             <h2 class="card-title">Temperature & rain</h2>
@@ -278,16 +322,10 @@ function render() {
 
         <div class="tiles">${tiles}</div>
       </div>
-
-      <div class="col">
-        <section class="card">
-          <h2 class="card-title">${d.days.length}-day forecast</h2>
-          <ul class="days">${days}</ul>
-        </section>
-      </div>
     </div>`;
 
   drawChart();
+  if (state.dayView) renderDay();
 
   $('#footer').innerHTML = wn
     ? `Forecast data: Google DeepMind WeatherNext 3, experimental data not intended, validated or approved for real-world use. © ${new Date().getFullYear()} DeepMind Technologies Limited. Historical data CC BY 4.0. Place search: Open-Meteo.`
@@ -309,6 +347,70 @@ function drawChart() {
   const hours = state.data.hours.slice(i0, i0 + state.chartRange + 1);
   if (hours.length < 2) return;
   renderChart(el, hours, makeFormat(state.settings, state.active.tz), { tz: state.active.tz });
+}
+
+// ---- Day detail ----------------------------------------------------------------------
+
+function dayViewOptions() {
+  return {
+    data: state.data,
+    key: state.dayView.key,
+    metric: state.dayView.metric,
+    fmt: makeFormat(state.settings, state.active.tz),
+    place: state.active,
+    nowT: Date.now(),
+  };
+}
+
+function renderDay() {
+  if (!state.data.days.some((x) => x.key === state.dayView.key)) state.dayView.key = state.data.days[0].key;
+  renderDayView($('#dayView'), dayViewOptions());
+}
+
+function openDay(key) {
+  if (!key || !state.data) return;
+  const wasOpen = !!state.dayView;
+  state.dayView = { key, metric: state.dayView?.metric || 'temp' };
+  const el = $('#dayView');
+  if (!wasOpen) {
+    history.pushState({ dayView: true }, '');
+    el.hidden = false;
+    document.body.classList.add('day-open');
+    requestAnimationFrame(() => el.classList.add('open'));
+  }
+  renderDay();
+  if (!wasOpen) el.scrollTop = 0;
+}
+
+function closeDay({ fromHistory = false } = {}) {
+  if (!state.dayView) return;
+  state.dayView = null;
+  const el = $('#dayView');
+  el.classList.remove('open');
+  el.hidden = true;
+  document.body.classList.remove('day-open');
+  if (!fromHistory && history.state?.dayView) history.back();
+}
+
+function bindSwipe(el) {
+  let x0 = null;
+  let y0 = null;
+  el.addEventListener('touchstart', (e) => {
+    if (e.target.closest('.chart, .dv-chips, .dv-tabs')) { x0 = null; return; }
+    x0 = e.touches[0].clientX;
+    y0 = e.touches[0].clientY;
+  }, { passive: true });
+  el.addEventListener('touchend', (e) => {
+    if (x0 == null || !state.dayView) return;
+    const dx = e.changedTouches[0].clientX - x0;
+    const dy = e.changedTouches[0].clientY - y0;
+    x0 = null;
+    if (Math.abs(dx) < 70 || Math.abs(dy) > Math.abs(dx) * 0.6) return;
+    const days = state.data.days;
+    const i = days.findIndex((x) => x.key === state.dayView.key);
+    const next = days[i + (dx < 0 ? 1 : -1)];
+    if (next) openDay(next.key);
+  }, { passive: true });
 }
 
 // ---- Places ------------------------------------------------------------------------
@@ -390,6 +492,8 @@ function fillSettings() {
   f.temp.value = s.temp;
   f.wind.value = s.wind;
   f.precip.value = s.precip;
+  f.appearance.value = s.appearance;
+  f.theme.value = s.theme;
   updateAuthStatus();
 }
 
@@ -397,6 +501,7 @@ function updateAuthStatus() {
   const s = state.settings;
   const token = auth.currentToken();
   $('#wnFields').classList.toggle('disabled', s.source !== 'weathernext');
+  $('#themeSeg').classList.toggle('disabled', s.appearance !== 'clean');
   $('#authStatus').textContent = token
     ? `Signed in · session valid for ${Math.round((token.expiresAt - Date.now()) / 60_000)} min`
     : 'Not signed in';
@@ -415,7 +520,10 @@ function onSettingsChange() {
     temp: f.temp.value,
     wind: f.wind.value,
     precip: f.precip.value,
+    appearance: f.appearance.value,
+    theme: f.theme.value,
   });
+  applyAppearance();
   updateAuthStatus();
   const dataChanged = ['source', 'clientId', 'project'].some((k) => prev[k] !== state.settings[k]);
   if (dataChanged) {
@@ -455,6 +563,17 @@ function bindEvents() {
       renderSidebar();
       return;
     }
+    const dayBtn = e.target.closest('[data-open-day]');
+    if (dayBtn) {
+      openDay(dayBtn.dataset.openDay);
+      return;
+    }
+    const metricBtn = e.target.closest('[data-day-metric]');
+    if (metricBtn && state.dayView) {
+      state.dayView.metric = metricBtn.dataset.dayMetric;
+      renderDay();
+      return;
+    }
     const rangeBtn = e.target.closest('[data-range]');
     if (rangeBtn) {
       state.chartRange = Number(rangeBtn.dataset.range);
@@ -478,6 +597,9 @@ function bindEvents() {
         break;
       case 'close-sheet':
         closeSheets();
+        break;
+      case 'close-day':
+        closeDay();
         break;
       case 'refresh':
         state.notice = null;
@@ -518,12 +640,28 @@ function bindEvents() {
   $('#searchInput').addEventListener('input', onSearchInput);
   $('#settingsForm').addEventListener('change', onSettingsChange);
   $('#settingsForm').addEventListener('submit', (e) => e.preventDefault());
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheets(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      if (document.querySelector('.sheet-backdrop:not([hidden])')) closeSheets();
+      else closeDay();
+    }
+    if (state.dayView && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !e.target.closest('input')) {
+      const days = state.data.days;
+      const i = days.findIndex((x) => x.key === state.dayView.key);
+      const next = days[i + (e.key === 'ArrowRight' ? 1 : -1)];
+      if (next) openDay(next.key);
+    }
+  });
+  window.addEventListener('popstate', () => { if (state.dayView) closeDay({ fromHistory: true }); });
+  bindSwipe($('#dayView'));
 
   let resizeTimer;
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(drawChart, 120);
+    resizeTimer = setTimeout(() => {
+      drawChart();
+      if (state.dayView) drawDayChart($('#dayView'), dayViewOptions());
+    }, 120);
   });
 
   // Refresh when the app returns to the foreground after a while.

@@ -9,6 +9,8 @@ export const DEFAULTS = {
   temp: 'c',             // 'c' | 'f'
   wind: 'kmh',           // 'kmh' | 'ms' | 'mph' | 'kn'
   precip: 'mm',          // 'mm' | 'in'
+  appearance: 'sky',     // 'sky' | 'clean'
+  theme: 'auto',         // 'auto' | 'light' | 'dark' (Clean appearance only)
 };
 
 // Used when no place is saved and geolocation is unavailable.

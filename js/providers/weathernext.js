@@ -70,7 +70,7 @@ function buildQuery(ee, lat, lon) {
   const now = Date.now();
   // system:time_start is the run's init time, so only recent inits are scanned.
   const col = ee.ImageCollection(WEATHERNEXT.collection)
-    .filterDate(new Date(now - 54 * HOUR), new Date(now + HOUR));
+    .filterDate(new Date(now - 60 * HOUR), new Date(now + HOUR));
 
   // Newest init time among candidates whose final lead time exists
   // ('' when none, which then just yields an empty sample).
@@ -83,12 +83,15 @@ function buildQuery(ee, lat, lon) {
 
   const hourlyInit = newest(48, candidateInits(now, 1, 24));
   const synopticInit = newest(360, candidateInits(now, 6, 48));
+  // An older 6-hourly run that still covers the earlier hours of today.
+  const earlierInit = newest(360, candidateInits(now - 24 * HOUR, 6, 12));
 
   const point = ee.Geometry.Point([lon, lat]);
   // Returned as a plain list of dictionaries: a collection nested inside a
   // Dictionary comes back from evaluate() without its features.
-  const sample = (init) => col
+  const sample = (init, maxHour = 360) => col
     .filter(ee.Filter.eq('start_time', init))
+    .filter(ee.Filter.lte('forecast_hour', maxHour))
     .select(BANDS)
     .toList(400)
     .map((img) => ee.Image(img)
@@ -100,6 +103,7 @@ function buildQuery(ee, lat, lon) {
     synopticInit,
     hourly: sample(hourlyInit),
     synoptic: sample(synopticInit),
+    earlier: sample(earlierInit, 48),
   });
 }
 
@@ -163,6 +167,7 @@ export async function fetchWeatherNext({ lat, lon, token, clientId, project }) {
 
   const hourly = (res.hourly || []).map(toHour);
   const synoptic = (res.synoptic || []).map(toHour);
+  const earlier = (res.earlier || []).map(toHour);
   if (!hourly.length && !synoptic.length) {
     throw new Error('No recent WeatherNext 3 run was found for this location.');
   }
@@ -172,9 +177,10 @@ export async function fetchWeatherNext({ lat, lon, token, clientId, project }) {
 
   // Prefer the fresher run for every valid time it covers.
   const byTime = new Map();
+  for (const h of earlier) byTime.set(h.t, h);
   for (const h of synoptic) byTime.set(h.t, h);
   for (const h of hourly) byTime.set(h.t, h);
-  const cutoff = Date.now() - 2 * HOUR;
+  const cutoff = Date.now() - 24 * HOUR; // keeps the earlier hours of today
   const hours = [...byTime.values()].filter((h) => h.t >= cutoff).sort((a, b) => a.t - b.t);
 
   return {

@@ -17,7 +17,7 @@ export async function fetchOpenMeteo({ lat, lon }) {
     wind_speed_unit: 'ms',
     timeformat: 'unixtime',
     forecast_days: '15',
-    past_hours: '2',
+    past_days: '1',
   });
   const r = await fetch(url);
   if (!r.ok) throw new Error(`Open-Meteo request failed (${r.status})`);
